@@ -96,18 +96,30 @@ jobs:
             -show_entries stream=index,codec_name,codec_type,width,height,r_frame_rate,pix_fmt \
             -of json "$FILE" | tee production-preflight-report.json
 
-          VIDEO_CODEC="$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$FILE")"
-          WIDTH="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$FILE")"
-          HEIGHT="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$FILE")"
-          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$FILE")"
-
-          echo "video_codec=$VIDEO_CODEC" >> "$GITHUB_STEP_SUMMARY"
-          echo "resolution=${WIDTH}x${HEIGHT}" >> "$GITHUB_STEP_SUMMARY"
-          echo "duration_seconds=$DURATION" >> "$GITHUB_STEP_SUMMARY"
-
-          test "$VIDEO_CODEC" = "h264"
-          test "$WIDTH" -gt 0
-          test "$HEIGHT" -gt 0
+          .venv/bin/python - <<'PY'
+          import json
+          from pathlib import Path
+          
+          report = json.loads(Path("production-preflight-report.json").read_text())
+          streams = report.get("streams", [])
+          video = next((s for s in streams if s.get("codec_type") == "video"), None)
+          audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+          duration = float(report.get("format", {}).get("duration", 0))
+          
+          assert video is not None, "No video stream found"
+          assert video.get("codec_name") == "h264", f"Expected h264, got {video.get('codec_name')}"
+          assert int(video.get("width", 0)) > 0, "Invalid video width"
+          assert int(video.get("height", 0)) > 0, "Invalid video height"
+          assert duration > 0, "Invalid duration"
+          
+          summary = Path(__import__("os").environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as fh:
+              fh.write(f"video_codec={video.get('codec_name')}\n")
+              fh.write(f"resolution={video.get('width')}x{video.get('height')}\n")
+              fh.write(f"frame_rate={video.get('r_frame_rate')}\n")
+              fh.write(f"duration_seconds={duration:.3f}\n")
+              fh.write(f"audio_codec={audio.get('codec_name') if audio else 'none'}\n")
+          PY
 
       - name: Upload rendered MP4 and QA report
         uses: actions/upload-artifact@v4
