@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: egypt-drone-50-off-poc
+  cancel-in-progress: true
+
 jobs:
   render:
     runs-on: ubuntu-latest
@@ -18,35 +22,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install FFmpeg and Arabic font
+      - name: Validate render runtime
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
+          command -v ffmpeg
+          command -v ffprobe
           ffmpeg -version | head -n 1
-          fc-match "Noto Sans Arabic" | head -n 1
+          ffprobe -version | head -n 1
+          FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          test -f "$FONT"
+          echo "FONT=$FONT" >> "$GITHUB_ENV"
 
       - name: Download temporary licensed/free stock clips
         run: |
           mkdir -p work/assets work/out
-          curl -L --fail --retry 3 -o work/assets/cairo.mp4 "https://www.pexels.com/download/video/10717893/"
-          curl -L --fail --retry 3 -o work/assets/aswan.mp4 "https://www.pexels.com/download/video/29233321/"
-          curl -L --fail --retry 3 -o work/assets/alexandria.mp4 "https://www.pexels.com/download/video/7579789/"
-          curl -L --fail --retry 3 -o work/assets/countryside.mp4 "https://www.pexels.com/download/video/29138103/"
-          curl -L --fail --retry 3 -o work/assets/storefront.mp4 "https://www.pexels.com/download/video/4606781/"
-          curl -L --fail --retry 3 -o work/assets/fashion.mp4 "https://www.pexels.com/download/video/6335703/"
+          curl -L --fail --retry 3 --retry-delay 2 -o work/assets/cairo.mp4 "https://www.pexels.com/download/video/10717893/"
+          curl -L --fail --retry 3 --retry-delay 2 -o work/assets/aswan.mp4 "https://www.pexels.com/download/video/29233321/"
+          curl -L --fail --retry 3 --retry-delay 2 -o work/assets/alexandria.mp4 "https://www.pexels.com/download/video/7579789/"
+          curl -L --fail --retry 3 --retry-delay 2 -o work/assets/countryside.mp4 "https://www.pexels.com/download/video/29138103/"
+          curl -L --fail --retry 3 --retry-delay 2 -o work/assets/storefront.mp4 "https://www.pexels.com/download/video/4606781/"
+          curl -L --fail --retry 3 --retry-delay 2 -o work/assets/fashion.mp4 "https://www.pexels.com/download/video/6335703/"
           ls -lh work/assets
+          for f in work/assets/*.mp4; do ffprobe -v error -show_entries format=duration -of csv=p=0 "$f"; done
 
       - name: Prepare Arabic overlays
         run: |
-          printf '%s' 'خصم 50%%' > work/sale.txt
+          printf '%s' 'خصم 50%' > work/sale.txt
           printf '%s' 'زوروا أي فرع من فروعنا الآن' > work/cta.txt
-          FONT="$(fc-match -f '%{file}\n' 'Noto Sans Arabic' | head -n 1)"
-          echo "FONT=$FONT" >> "$GITHUB_ENV"
 
       - name: Render cinematic vertical POC
         shell: bash
         run: |
-          ffmpeg -y             -ss 6  -t 3.6 -i work/assets/cairo.mp4             -ss 2  -t 3.6 -i work/assets/aswan.mp4             -ss 1  -t 3.2 -i work/assets/alexandria.mp4             -ss 3  -t 3.2 -i work/assets/countryside.mp4             -ss 0  -t 3.0 -i work/assets/storefront.mp4             -ss 0  -t 4.0 -i work/assets/fashion.mp4             -filter_complex "
+          ffmpeg -y             -ss 6 -t 3.6 -i work/assets/cairo.mp4             -ss 2 -t 3.6 -i work/assets/aswan.mp4             -ss 1 -t 3.2 -i work/assets/alexandria.mp4             -ss 3 -t 3.2 -i work/assets/countryside.mp4             -ss 0 -t 3.0 -i work/assets/storefront.mp4             -ss 0 -t 4.0 -i work/assets/fashion.mp4             -f lavfi -t 18.5 -i "anoisesrc=color=pink:amplitude=0.02:sample_rate=48000"             -f lavfi -t 18.5 -i "sine=frequency=55:sample_rate=48000"             -f lavfi -t 0.8 -i "sine=frequency=75:sample_rate=48000"             -filter_complex "
             [0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,setpts=PTS-STARTPTS,eq=contrast=1.06:saturation=1.08[v0];
             [1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,setpts=PTS-STARTPTS,eq=contrast=1.06:saturation=1.08[v1];
             [2:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,setpts=PTS-STARTPTS,eq=contrast=1.06:saturation=1.08[v2];
@@ -57,21 +64,34 @@ jobs:
             [x1][v2]xfade=transition=wipeleft:duration=0.35:offset=6.50[x2];
             [x2][v3]xfade=transition=fadefast:duration=0.35:offset=9.35[x3];
             [x3][v4]xfade=transition=slideleft:duration=0.35:offset=12.20[x4];
-            [x4][v5]xfade=transition=fade:duration=0.35:offset=14.85[x5];
-            [x5]drawtext=fontfile='$FONT':textfile=work/sale.txt:fontsize=150:fontcolor=white:borderw=8:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.34:enable='between(t,15.0,18.8)',
-                drawtext=fontfile='$FONT':textfile=work/cta.txt:fontsize=62:fontcolor=white:borderw=5:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.70:enable='between(t,16.8,18.8)',
-                fade=t=out:st=18.3:d=0.5[vout]
-            "             -f lavfi -t 18.8 -i "anoisesrc=color=pink:amplitude=0.02"             -f lavfi -t 18.8 -i "sine=frequency=55:sample_rate=48000"             -f lavfi -t 0.8 -i "sine=frequency=75:sample_rate=48000"             -filter_complex_script /dev/null             -map "[vout]"             -filter_complex "
+            [x4][v5]xfade=transition=fade:duration=0.35:offset=14.50[x5];
+            [x5]drawtext=fontfile='$FONT':textfile=work/sale.txt:expansion=none:fontsize=150:fontcolor=white:borderw=8:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.32:enable='between(t,14.7,18.3)',
+                 drawtext=fontfile='$FONT':textfile=work/cta.txt:expansion=none:fontsize=58:fontcolor=white:borderw=5:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.70:enable='between(t,16.2,18.3)',
+                 fade=t=out:st=18.0:d=0.5[vout];
             [6:a]lowpass=f=1400,volume=0.5[a0];
             [7:a]volume=0.08[a1];
-            [8:a]volume=0.35,adelay=15000|15000[a2];
-            [a0][a1][a2]amix=inputs=3:duration=longest:normalize=0,afade=t=in:st=0:d=0.8,afade=t=out:st=18.0:d=0.8[aout]
-            "             -map "[aout]"             -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p             -c:a aac -b:a 192k -movflags +faststart             -shortest work/out/egypt-drone-50-off-poc.mp4
+            [8:a]volume=0.35,adelay=14700|14700[a2];
+            [a0][a1][a2]amix=inputs=3:duration=longest:normalize=0,afade=t=in:st=0:d=0.8,afade=t=out:st=17.7:d=0.8[aout]
+            "             -map "[vout]" -map "[aout]"             -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p             -c:a aac -b:a 192k -ar 48000             -movflags +faststart -shortest             work/out/egypt-drone-50-off-poc.mp4
 
       - name: QA with ffprobe
         run: |
-          ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,codec_type,width,height,r_frame_rate -of json work/out/egypt-drone-50-off-poc.mp4 | tee work/out/qa.json
-          test -s work/out/egypt-drone-50-off-poc.mp4
+          ffprobe -v error             -show_entries format=duration,size,bit_rate             -show_entries stream=codec_name,codec_type,width,height,r_frame_rate,pix_fmt             -of json work/out/egypt-drone-50-off-poc.mp4 | tee work/out/qa.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("work/out/egypt-drone-50-off-poc.mp4")
+          assert p.exists() and p.stat().st_size > 100000
+          d=json.loads(Path("work/out/qa.json").read_text())
+          video=next(s for s in d["streams"] if s.get("codec_type")=="video")
+          audio=next(s for s in d["streams"] if s.get("codec_type")=="audio")
+          assert video["codec_name"]=="h264"
+          assert video["width"]==1080 and video["height"]==1920
+          assert audio["codec_name"]=="aac"
+          duration=float(d["format"]["duration"])
+          assert 17.5 <= duration <= 19.2, duration
+          print("QA PASS", duration, p.stat().st_size)
+          PY
 
       - name: Upload POC
         uses: actions/upload-artifact@v4
