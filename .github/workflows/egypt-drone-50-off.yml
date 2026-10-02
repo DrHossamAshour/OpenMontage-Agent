@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
+          sudo apt-get install -y ffmpeg fontconfig fonts-noto-core fonts-dejavu-core
           ffmpeg -version | head -n 1
           ffprobe -version | head -n 1
           FONT="/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"
@@ -47,7 +47,7 @@ jobs:
 
       - name: Prepare Arabic overlays
         run: |
-          printf '%s' 'خصم 50%' > work/sale.txt
+          printf '%s' 'خصم' > work/sale_word.txt
           printf '%s' 'زوروا أي فرع من فروعنا الآن' > work/cta.txt
 
       - name: Render cinematic vertical POC
@@ -65,7 +65,8 @@ jobs:
             [x2][v3]xfade=transition=fadefast:duration=0.35:offset=9.35[x3];
             [x3][v4]xfade=transition=slideleft:duration=0.35:offset=12.20[x4];
             [x4][v5]xfade=transition=fade:duration=0.35:offset=14.50[x5];
-            [x5]drawtext=fontfile='$FONT':textfile=work/sale.txt:expansion=none:fontsize=150:fontcolor=white:borderw=8:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.32:enable='between(t,14.7,18.3)',
+            [x5]drawtext=fontfile='$FONT':textfile=work/sale_word.txt:expansion=none:fontsize=108:fontcolor=white:borderw=7:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.28:enable='between(t,14.7,18.3)',
+                 drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf':text='50%':expansion=none:fontsize=230:fontcolor=white:borderw=9:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.37:enable='between(t,14.7,18.3)',
                  drawtext=fontfile='$FONT':textfile=work/cta.txt:expansion=none:fontsize=58:fontcolor=white:borderw=5:bordercolor=black@0.45:x=(w-text_w)/2:y=h*0.70:enable='between(t,16.2,18.3)',
                  fade=t=out:st=18.0:d=0.5[vout];
             [6:a]lowpass=f=1400,volume=0.5[a0];
