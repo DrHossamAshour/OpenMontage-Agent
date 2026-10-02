@@ -22,15 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate render runtime
+      - name: Install and validate render runtime
         shell: bash
         run: |
-          command -v ffmpeg
-          command -v ffprobe
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
           ffmpeg -version | head -n 1
           ffprobe -version | head -n 1
-          FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          FONT="$(fc-match -f '%{file}\\n' 'Noto Sans Arabic' | head -n 1)"
           test -f "$FONT"
+          echo "Arabic font: $FONT"
           echo "FONT=$FONT" >> "$GITHUB_ENV"
 
       - name: Download temporary licensed/free stock clips
