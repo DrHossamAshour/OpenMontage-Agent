@@ -30,6 +30,8 @@ jobs:
     name: Production Engine Preflight
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DEMO: ${{ inputs.demo || 'code-to-screen' }}
 
     steps:
       - name: Checkout repository
@@ -82,12 +84,12 @@ jobs:
         run: make demo-list
 
       - name: Render zero-key production demo
-        run: .venv/bin/python render_demo.py "${{ inputs.demo }}"
+        run: .venv/bin/python render_demo.py "$DEMO"
 
       - name: Validate rendered master with ffprobe
         shell: bash
         run: |
-          FILE="projects/demos/renders/${{ inputs.demo }}.mp4"
+          FILE="projects/demos/renders/$DEMO.mp4"
           test -s "$FILE"
           ffprobe -v error \
             -show_entries format=duration,size,bit_rate \
@@ -110,9 +112,9 @@ jobs:
       - name: Upload rendered MP4 and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: openmontage-preflight-${{ inputs.demo }}
+          name: openmontage-preflight-${{ env.DEMO }}
           path: |
-            projects/demos/renders/${{ inputs.demo }}.mp4
+            projects/demos/renders/${{ env.DEMO }}.mp4
             production-preflight-report.json
           if-no-files-found: error
           retention-days: 7
